@@ -1,1 +1,19 @@
 /* App-specific styles — global design system is in index.css */
+
+.home-grid {
+  display: grid;
+  gap: 20px;
+  grid-template-columns: 1fr; /* Stacks vertically on small screens */
+}
+
+@media (min-width: 640px) {
+  .home-grid {
+    grid-template-columns: repeat(2, 1fr); /* 2 columns side-by-side on tablet */
+  }
+}
+
+@media (min-width: 1024px) {
+  .home-grid {
+    grid-template-columns: repeat(3, 1fr); /* 3 columns side-by-side on desktop */
+  }
+}
