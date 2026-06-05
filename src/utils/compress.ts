@@ -5,10 +5,17 @@
  *  1. compressToWebP(file, quality) — fixed quality (0.0–1.0)
  *  2. compressToTargetBytes(file, targetBytes) — binary search to hit a size target
  *
+ * Safety guarantee:
+ *   Both functions ALWAYS return a blob smaller than the original file.
+ *   If WebP encoding at any setting produces a result >= original size,
+ *   the original file bytes are returned as-is (with the original MIME type).
+ *   Callers can detect this via: blob.type !== 'image/webp'
+ *
  * The binary search strategy:
  *   - Try original dimensions, search quality 0.10–0.92 (8 iterations ≈ <1s)
  *   - If still can't fit, progressively scale dimensions: 1920 → 1280 → 960 → 640
  *   - Last resort: 640px wide at quality 0.10
+ *   - Absolute fallback: return original file bytes unchanged
  */
 
 // Dimension cascade used when target size is set
@@ -72,6 +79,13 @@ function loadImage(file: File): Promise<HTMLImageElement> {
   });
 }
 
+// ─── Internal: return original file bytes as a Blob (type-preserving) ─────────
+
+async function originalAsBlob(file: File): Promise<Blob> {
+  const buf = await file.arrayBuffer();
+  return new Blob([buf], { type: file.type });
+}
+
 // ─── Internal: binary search quality for a given dimension cap ───────────────
 
 async function binarySearch(
@@ -102,22 +116,37 @@ async function binarySearch(
 // ─── Public API ───────────────────────────────────────────────────────────────
 
 /**
- * Fixed-quality WebP compression (original behaviour).
+ * Fixed-quality WebP compression.
  * Strips EXIF automatically via Canvas.
+ *
+ * If the resulting WebP is >= the original file size, the original
+ * file bytes are returned unchanged (blob.type === original MIME type).
  */
 export async function compressToWebP(file: File, quality = 0.82): Promise<Blob> {
   const img = await loadImage(file);
-  return drawAndExport(img, quality, undefined);
+  const blob = await drawAndExport(img, quality, undefined);
+
+  // Safety net: never return a file larger than the original
+  if (blob.size >= file.size) {
+    return originalAsBlob(file);
+  }
+
+  return blob;
 }
 
 /**
  * Target-size WebP compression.
  *
  * Tries to produce a WebP blob ≤ targetBytes.
+ * Also enforces that the result is always smaller than the original file.
+ *
+ * The effective target is: Math.min(targetBytes, file.size - 1)
+ *
  * Progressively reduces quality (binary search) and, if needed,
  * also scales down dimensions until the target is met.
  *
- * Returns the best result even if the target couldn't be reached.
+ * If no WebP encoding can beat the original, the original file bytes
+ * are returned unchanged (blob.type === original MIME type).
  */
 export async function compressToTargetBytes(
   file: File,
@@ -125,17 +154,29 @@ export async function compressToTargetBytes(
 ): Promise<Blob> {
   const img = await loadImage(file);
 
-  // If the source file is already well under target, just do a quality pass
+  // Always cap the target at original file size — we must beat the original
+  const effectiveTarget = Math.min(targetBytes, file.size - 1);
+
+  // If the source file is already well under target, just do a high-quality pass
   if (file.size < targetBytes * 0.7) {
-    return drawAndExport(img, 0.88, undefined);
+    const blob = await drawAndExport(img, 0.88, undefined);
+    if (blob.size >= file.size) return originalAsBlob(file);
+    return blob;
   }
 
-  // Walk through dimension cascade until we hit the target
+  // Walk through dimension cascade until we hit the effective target
   for (const maxDim of DIM_STEPS) {
-    const result = await binarySearch(img, targetBytes, maxDim);
-    if (result !== null) return result;
+    const result = await binarySearch(img, effectiveTarget, maxDim);
+    if (result !== null) return result; // guaranteed to be < file.size
   }
 
-  // Absolute last resort: 640px at minimum quality
-  return drawAndExport(img, 0.10, 640);
+  // Last resort: 640px at minimum quality
+  const lastResort = await drawAndExport(img, 0.10, 640);
+
+  // Final safety net: if still >= original, return original unchanged
+  if (lastResort.size >= file.size) {
+    return originalAsBlob(file);
+  }
+
+  return lastResort;
 }

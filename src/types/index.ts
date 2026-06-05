@@ -9,6 +9,11 @@ export interface ImageFile {
   compressedSize: number | null;
   status: FileStatus;
   error?: string;
-  /** Output filename with .webp extension */
+  /** Actual output filename — .webp if converted, original ext if original was kept */
   webpName: string;
+  /**
+   * True when the compression engine could not beat the original file size.
+   * In this case blob contains the original file bytes unchanged.
+   */
+  keptOriginal: boolean;
 }

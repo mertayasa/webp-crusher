@@ -53,8 +53,8 @@ export default function App() {
   const [targetKB, setTargetKB]   = useState<number | null>(DEFAULT_TARGET_KB);
   const [trimmed, setTrimmed]     = useState(false); // true when we had to drop files over the limit
 
-  // Locked when any files exist — must clear before starting a new batch
-  const isLocked = files.length > 0;
+  // Locked only when the 10-file cap is reached
+  const isLocked = files.length >= MAX_FILES;
 
   // ── Process a single file
   const processFile = useCallback(async (
@@ -70,10 +70,21 @@ export default function App() {
         ? await compressToTargetBytes(file, kb * 1024)
         : await compressToWebP(file, 0.82);
 
+      // Detect if the engine fell back to the original (blob.type won't be webp)
+      const keptOriginal = blob.type !== 'image/webp';
+
       setFiles(prev =>
         prev.map(f =>
           f.id === id
-            ? { ...f, status: 'done', blob, compressedSize: blob.size }
+            ? {
+                ...f,
+                status: 'done',
+                blob,
+                compressedSize: blob.size,
+                keptOriginal,
+                // Update filename: keep original ext if we couldn't beat it
+                webpName: keptOriginal ? file.name : toWebpName(file.name),
+              }
             : f,
         ),
       );
@@ -95,9 +106,10 @@ export default function App() {
 
       const currentTarget = targetKB; // capture at drop time
 
-      // Enforce 10-file limit
-      const sliced = accepted.slice(0, MAX_FILES);
-      setTrimmed(accepted.length > MAX_FILES);
+      // Calculate how many slots are still available
+      const slotsLeft = MAX_FILES - files.length;
+      const sliced    = accepted.slice(0, slotsLeft);
+      setTrimmed(accepted.length > slotsLeft);
 
       const newFiles: ImageFile[] = sliced.map(file => ({
         id: crypto.randomUUID(),
@@ -108,9 +120,11 @@ export default function App() {
         compressedSize: null,
         status: 'pending',
         webpName: toWebpName(file.name),
+        keptOriginal: false,
       }));
 
-      setFiles(newFiles);
+      // Append to existing queue (don't replace it)
+      setFiles(prev => [...prev, ...newFiles]);
 
       const run = async () => {
         for (let i = 0; i < newFiles.length; i += CONCURRENCY) {
@@ -122,7 +136,7 @@ export default function App() {
       };
       run();
     },
-    [processFile, targetKB, isLocked],
+    [processFile, targetKB, isLocked, files.length],
   );
 
   const { getRootProps, getInputProps, isDragActive, isDragReject } = useDropzone({
@@ -159,13 +173,15 @@ export default function App() {
   const clearAll = () => { setFiles([]); setTrimmed(false); };
 
   // ── Derived stats
-  const total            = files.length;
-  const doneCount        = files.filter(f => f.status === 'done').length;
-  const processingCount  = files.filter(f => f.status === 'processing' || f.status === 'pending').length;
-  const doneFiles        = files.filter(f => f.status === 'done');
-  const totalCompressed  = doneFiles.reduce((a, f) => a + (f.compressedSize ?? 0), 0);
-  const totalOriginal    = doneFiles.reduce((a, f) => a + f.originalSize, 0);
-  const overallSavings   = doneCount > 0 ? calcSavings(totalOriginal, totalCompressed) : 0;
+  const total              = files.length;
+  const doneCount          = files.filter(f => f.status === 'done').length;
+  const processingCount    = files.filter(f => f.status === 'processing' || f.status === 'pending').length;
+  const doneFiles          = files.filter(f => f.status === 'done');
+  const compressedFiles    = doneFiles.filter(f => !f.keptOriginal);
+  const keptOriginalCount  = doneFiles.filter(f => f.keptOriginal).length;
+  const totalCompressed    = compressedFiles.reduce((a, f) => a + (f.compressedSize ?? 0), 0);
+  const totalOriginal      = compressedFiles.reduce((a, f) => a + f.originalSize, 0);
+  const overallSavings     = compressedFiles.length > 0 ? calcSavings(totalOriginal, totalCompressed) : 0;
 
   // ─────────────────────────────────────────────────────────────────────────────
 
@@ -239,9 +255,11 @@ export default function App() {
             </p>
             <p style={s.dropSub}>
               {isLocked
-                ? `Max ${MAX_FILES} files per batch`
+                ? 'Clear files to free up slots'
                 : !isDragReject
-                  ? 'or click to browse · multiple files supported'
+                  ? files.length > 0
+                    ? `${MAX_FILES - files.length} slot${MAX_FILES - files.length !== 1 ? 's' : ''} remaining · click or drop more`
+                    : `or click to browse · up to ${MAX_FILES} files`
                   : ''}
             </p>
           </div>
@@ -250,7 +268,7 @@ export default function App() {
         {/* ── Trimmed notice */}
         {trimmed && (
           <div style={s.notice}>
-            Only the first {MAX_FILES} files were added — the rest were skipped.
+            Some files were skipped — only {MAX_FILES - files.length} slot{MAX_FILES - files.length !== 1 ? 's' : ''} were available.
           </div>
         )}
 
@@ -272,12 +290,15 @@ export default function App() {
                 <span style={s.statDone}>
                   <CheckCircle2 size={14} />
                   {doneCount} of {total} done
-                  {doneCount > 0 && (
+                  {compressedFiles.length > 0 && (
                     <span style={s.pill}>−{overallSavings.toFixed(1)}% overall</span>
+                  )}
+                  {keptOriginalCount > 0 && (
+                    <span style={s.pillKept}>{keptOriginalCount} original kept</span>
                   )}
                 </span>
               )}
-              {doneCount > 0 && (
+              {compressedFiles.length > 0 && (
                 <span style={s.sizes}>
                   {formatBytes(totalOriginal)} → {formatBytes(totalCompressed)}
                 </span>
@@ -343,16 +364,21 @@ export default function App() {
                       <span style={s.sizeOrig}>{formatBytes(file.originalSize)}</span>
                       <span style={s.sizeArrow}>→</span>
                       <span style={s.sizeNew}>{formatBytes(file.compressedSize)}</span>
-                      <span style={{
-                        ...s.savingsPill,
-                        // Warn if we couldn't hit the target
-                        ...(targetKB && file.compressedSize > targetKB * 1024
-                          ? s.savingsPillWarn : {}),
-                      }}>
-                        {targetKB && file.compressedSize > targetKB * 1024
-                          ? `best effort`
-                          : `−${calcSavings(file.originalSize, file.compressedSize).toFixed(1)}%`}
-                      </span>
+                      {file.keptOriginal ? (
+                        <span style={s.keptPill} title="WebP would be larger — original format kept">
+                          Original kept
+                        </span>
+                      ) : (
+                        <span style={{
+                          ...s.savingsPill,
+                          ...(targetKB && file.compressedSize > targetKB * 1024
+                            ? s.savingsPillWarn : {}),
+                        }}>
+                          {targetKB && file.compressedSize > targetKB * 1024
+                            ? 'best effort'
+                            : `−${calcSavings(file.originalSize, file.compressedSize).toFixed(1)}%`}
+                        </span>
+                      )}
                     </div>
                   )}
 
@@ -531,6 +557,10 @@ const s: Record<string, CSSProperties> = {
     background: 'var(--success-subtle)', color: 'var(--success)',
     padding: '2px 8px', borderRadius: 20, fontSize: 11, fontWeight: 700, marginLeft: 2,
   },
+  pillKept: {
+    background: 'rgba(245,158,11,0.12)', color: 'var(--warning)',
+    padding: '2px 8px', borderRadius: 20, fontSize: 11, fontWeight: 700, marginLeft: 2,
+  },
   sizes: { fontSize: 12, color: 'var(--text-muted)' },
 
   // Buttons
@@ -603,6 +633,11 @@ const s: Record<string, CSSProperties> = {
   },
   savingsPillWarn: {
     background: 'rgba(245,158,11,0.12)', color: 'var(--warning)',
+  },
+  keptPill: {
+    background: 'rgba(245,158,11,0.12)', color: 'var(--warning)',
+    padding: '2px 8px', borderRadius: 20, fontSize: 11, fontWeight: 700,
+    cursor: 'help',
   },
 
   errorRow: {
