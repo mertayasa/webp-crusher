@@ -9,25 +9,7 @@ import CropImage from './pages/CropImage';
 import WatermarkImage from './pages/WatermarkImage';
 import Home from './pages/Home';
 import ComingSoon from './pages/ComingSoon';
-import { useDropzone } from 'react-dropzone';
-import JSZip from 'jszip';
-import { saveAs } from 'file-saver';
-import {
-  Upload,
-  Download,
-  Archive,
-  Trash2,
-  Loader2,
-  CheckCircle2,
-  XCircle,
-  FileImage,
-  Zap,
-  Target,
-} from 'lucide-react';
 import { Analytics } from '@vercel/analytics/react';
-import type { ImageFile, FileStatus } from './types';
-import { compressToWebP, compressToTargetBytes } from './utils/compress';
-import { formatBytes, calcSavings, toWebpName } from './utils/format';
 import './App.css';
 
 export default function App() {
