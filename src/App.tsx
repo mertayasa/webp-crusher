@@ -21,6 +21,7 @@ import { formatBytes, calcSavings, toWebpName } from './utils/format';
 import './App.css';
 
 const CONCURRENCY = 3;
+const MAX_FILES   = 10;
 
 // Target size options — null means "quality mode" (fixed 82%)
 const SIZE_OPTIONS: Array<{ label: string; kb: number | null }> = [
@@ -50,6 +51,10 @@ export default function App() {
   const [files, setFiles]         = useState<ImageFile[]>([]);
   const [zipping, setZipping]     = useState(false);
   const [targetKB, setTargetKB]   = useState<number | null>(DEFAULT_TARGET_KB);
+  const [trimmed, setTrimmed]     = useState(false); // true when we had to drop files over the limit
+
+  // Locked when any files exist — must clear before starting a new batch
+  const isLocked = files.length > 0;
 
   // ── Process a single file
   const processFile = useCallback(async (
@@ -86,11 +91,15 @@ export default function App() {
   // ── Drop handler
   const onDrop = useCallback(
     (accepted: File[]) => {
-      if (!accepted.length) return;
+      if (!accepted.length || isLocked) return;
 
       const currentTarget = targetKB; // capture at drop time
 
-      const newFiles: ImageFile[] = accepted.map(file => ({
+      // Enforce 10-file limit
+      const sliced = accepted.slice(0, MAX_FILES);
+      setTrimmed(accepted.length > MAX_FILES);
+
+      const newFiles: ImageFile[] = sliced.map(file => ({
         id: crypto.randomUUID(),
         name: file.name,
         originalFile: file,
@@ -101,7 +110,7 @@ export default function App() {
         webpName: toWebpName(file.name),
       }));
 
-      setFiles(prev => [...prev, ...newFiles]);
+      setFiles(newFiles);
 
       const run = async () => {
         for (let i = 0; i < newFiles.length; i += CONCURRENCY) {
@@ -113,11 +122,12 @@ export default function App() {
       };
       run();
     },
-    [processFile, targetKB],
+    [processFile, targetKB, isLocked],
   );
 
   const { getRootProps, getInputProps, isDragActive, isDragReject } = useDropzone({
     onDrop,
+    disabled: isLocked,
     accept: {
       'image/png':  ['.png'],
       'image/jpeg': ['.jpg', '.jpeg'],
@@ -146,7 +156,7 @@ export default function App() {
     }
   };
 
-  const clearAll = () => setFiles([]);
+  const clearAll = () => { setFiles([]); setTrimmed(false); };
 
   // ── Derived stats
   const total            = files.length;
@@ -203,36 +213,55 @@ export default function App() {
           {...getRootProps()}
           style={{
             ...s.dropzone,
-            ...(isDragActive && !isDragReject ? s.dropzoneActive : {}),
-            ...(isDragReject ? s.dropzoneReject : {}),
+            ...(isLocked ? s.dropzoneLocked : {}),
+            ...(!isLocked && isDragActive && !isDragReject ? s.dropzoneActive : {}),
+            ...(!isLocked && isDragReject ? s.dropzoneReject : {}),
           }}
-          aria-label="Drop PNG or JPG files here"
+          aria-label={isLocked ? 'Clear files to start a new batch' : 'Drop PNG or JPG files here'}
         >
           <input {...getInputProps()} />
           <div style={s.dropContent}>
             <div style={{
               ...s.dropIcon,
-              ...(isDragActive ? s.dropIconActive : {}),
+              ...(isLocked ? s.dropIconLocked : {}),
+              ...(!isLocked && isDragActive ? s.dropIconActive : {}),
             }}>
-              <Upload size={26} color={isDragReject ? 'var(--error)' : 'var(--accent)'} />
+              <Upload size={26} color={isLocked ? 'var(--text-dim)' : isDragReject ? 'var(--error)' : 'var(--accent)'} />
             </div>
-            <p style={s.dropTitle}>
-              {isDragReject
-                ? 'Only PNG and JPG files are accepted'
-                : isDragActive
-                  ? 'Release to compress!'
-                  : 'Drop PNG or JPG files here'}
+            <p style={{ ...s.dropTitle, ...(isLocked ? { color: 'var(--text-muted)' } : {}) }}>
+              {isLocked
+                ? 'Clear all files below to start a new batch'
+                : isDragReject
+                  ? 'Only PNG and JPG files are accepted'
+                  : isDragActive
+                    ? 'Release to compress!'
+                    : `Drop up to ${MAX_FILES} PNG or JPG files here`}
             </p>
             <p style={s.dropSub}>
-              {!isDragReject && 'or click to browse · multiple files supported'}
+              {isLocked
+                ? `Max ${MAX_FILES} files per batch`
+                : !isDragReject
+                  ? 'or click to browse · multiple files supported'
+                  : ''}
             </p>
           </div>
         </div>
+
+        {/* ── Trimmed notice */}
+        {trimmed && (
+          <div style={s.notice}>
+            Only the first {MAX_FILES} files were added — the rest were skipped.
+          </div>
+        )}
 
         {/* ── Toolbar */}
         {total > 0 && (
           <div style={s.toolbar}>
             <div style={s.toolbarLeft}>
+              {/* File counter */}
+              <span style={s.counter}>
+                {total} / {MAX_FILES}
+              </span>
               {processingCount > 0 ? (
                 <span style={s.statBusy}>
                   <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} />
@@ -268,7 +297,7 @@ export default function App() {
                   {zipping ? 'Zipping…' : 'Download All ZIP'}
                 </button>
               )}
-              <button style={s.btnGhost} onClick={clearAll} aria-label="Clear all files">
+              <button style={s.btnGhostDanger} onClick={clearAll} aria-label="Clear all files to start new batch">
                 <Trash2 size={14} />
                 Clear All
               </button>
@@ -453,6 +482,12 @@ const s: Record<string, CSSProperties> = {
     boxShadow: 'var(--shadow-glow)',
   },
   dropzoneReject: { border: '2px dashed var(--error)', background: 'var(--error-subtle)' },
+  dropzoneLocked: {
+    border: '2px dashed var(--border)',
+    background: 'var(--bg)',
+    cursor: 'not-allowed',
+    opacity: 0.55,
+  },
   dropContent: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, pointerEvents: 'none' },
   dropIcon: {
     width: 56, height: 56, borderRadius: '50%',
@@ -461,8 +496,19 @@ const s: Record<string, CSSProperties> = {
     marginBottom: 4, transition: 'all 250ms ease',
   },
   dropIconActive: { background: 'var(--accent-glow)', border: '1px solid var(--accent)', transform: 'scale(1.1)' },
+  dropIconLocked: { background: 'var(--bg-elevated)', border: '1px solid var(--border)' },
   dropTitle: { fontSize: 15, fontWeight: 600, color: 'var(--text)' },
   dropSub:   { fontSize: 13, color: 'var(--text-muted)' },
+
+  // Trimmed notice
+  notice: {
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    padding: '8px 16px',
+    background: 'rgba(245,158,11,0.10)',
+    border: '1px solid rgba(245,158,11,0.25)',
+    borderRadius: 'var(--radius)',
+    fontSize: 12, color: 'var(--warning)', fontWeight: 500,
+  },
 
   // Toolbar
   toolbar: {
@@ -473,6 +519,12 @@ const s: Record<string, CSSProperties> = {
   },
   toolbarLeft:  { display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' },
   toolbarRight: { display: 'flex', alignItems: 'center', gap: 8 },
+  counter: {
+    fontSize: 12, fontWeight: 700, color: 'var(--text-muted)',
+    background: 'var(--bg-elevated)', padding: '3px 9px',
+    borderRadius: 20, border: '1px solid var(--border)',
+    letterSpacing: '0.3px',
+  },
   statBusy: { display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 500, color: 'var(--accent)' },
   statDone: { display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 500, color: 'var(--success)' },
   pill: {
@@ -494,6 +546,15 @@ const s: Record<string, CSSProperties> = {
     padding: '7px 13px', background: 'transparent', color: 'var(--text-muted)',
     border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)',
     fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit',
+  },
+  btnGhostDanger: {
+    display: 'flex', alignItems: 'center', gap: 6,
+    padding: '7px 13px',
+    background: 'rgba(239,68,68,0.06)',
+    color: 'var(--error)',
+    border: '1px solid rgba(239,68,68,0.25)',
+    borderRadius: 'var(--radius-sm)',
+    fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
   },
   btnDownload: {
     display: 'flex', alignItems: 'center', gap: 5,
