@@ -1,3 +1,4 @@
+"use client";
 import { useState, useCallback, useRef, useEffect } from 'react';
 import type { CSSProperties } from 'react';
 import { useDropzone } from 'react-dropzone';

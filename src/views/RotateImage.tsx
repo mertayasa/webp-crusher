@@ -1,53 +1,74 @@
-import { useState, useCallback, useRef } from 'react';
-import type { CSSProperties } from 'react';
+"use client";
+import { useState, useCallback, useRef, useEffect } from 'react';
+import type { CSSProperties, ChangeEvent } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { saveAs } from 'file-saver';
-import ReactCrop, { type Crop, type PixelCrop, centerCrop, makeAspectCrop } from 'react-image-crop';
-import 'react-image-crop/dist/ReactCrop.css';
 import {
   Upload,
   Download,
   Trash2,
   Loader2,
+  RotateCcw,
+  RotateCw,
+  FlipHorizontal,
+  FlipVertical,
   XCircle,
-  Crop as CropIcon,
-  Square,
-  RectangleHorizontal
 } from 'lucide-react';
-import { processCropAndExport } from '../utils/cropImage';
+import { drawTransformedImage, processRotateAndExport } from '../utils/rotateImage';
 import BackButton from '../components/BackButton';
 import OtherTools from '../components/OtherTools';
 import '../App.css';
 
-const ASPECT_RATIOS = [
-  { label: 'Freeform', value: undefined, icon: <CropIcon size={14} /> },
-  { label: 'Square (1:1)', value: 1, icon: <Square size={14} /> },
-  { label: '16:9', value: 16 / 9, icon: <RectangleHorizontal size={14} /> },
-  { label: '4:3', value: 4 / 3, icon: <RectangleHorizontal size={14} /> },
-  { label: '9:16', value: 9 / 16, icon: <RectangleHorizontal size={14} /> },
-];
-
-export default function CropImage() {
+export default function RotateImage() {
   const [file, setFile] = useState<File | null>(null);
-  const [imgSrc, setImgSrc] = useState<string>('');
-  const imgRef = useRef<HTMLImageElement>(null);
-
-  const [crop, setCrop] = useState<Crop>();
-  const [completedCrop, setCompletedCrop] = useState<PixelCrop>();
-  const [aspect, setAspect] = useState<number | undefined>(undefined);
-
+  const [imageElement, setImageElement] = useState<HTMLImageElement | null>(null);
+  
+  const [degrees, setDegrees] = useState<number>(0);
+  const [flipH, setFlipH] = useState<boolean>(false);
+  const [flipV, setFlipV] = useState<boolean>(false);
+  
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  // Load image when file is dropped
+  useEffect(() => {
+    if (!file) {
+      setImageElement(null);
+      return;
+    }
+
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      setImageElement(img);
+      // Reset transforms on new image
+      setDegrees(0);
+      setFlipH(false);
+      setFlipV(false);
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      setError('Failed to load image preview');
+    };
+    img.src = url;
+  }, [file]);
+
+  // Render preview canvas whenever image or transforms change
+  useEffect(() => {
+    if (!imageElement || !canvasRef.current) return;
+    const ctx = canvasRef.current.getContext('2d');
+    if (!ctx) return;
+    
+    drawTransformedImage(ctx, imageElement, { degrees, flipH, flipV }, file?.type === 'image/jpeg');
+  }, [imageElement, degrees, flipH, flipV, file]);
 
   const onDrop = useCallback((accepted: File[]) => {
     if (!accepted.length) return;
     setError(null);
-    const selectedFile = accepted[0];
-    setFile(selectedFile);
-
-    const reader = new FileReader();
-    reader.addEventListener('load', () => setImgSrc(reader.result?.toString() || ''));
-    reader.readAsDataURL(selectedFile);
+    setFile(accepted[0]);
   }, []);
 
   const { getRootProps, getInputProps, isDragActive, isDragReject } = useDropzone({
@@ -62,30 +83,17 @@ export default function CropImage() {
     multiple: false,
   });
 
-  const onImageLoad = () => {
-    const initialCrop: Crop = {
-      unit: '%',
-      width: 50,
-      height: 50,
-      x: 25,
-      y: 25,
-    };
-    setCrop(initialCrop);
-  };
-
   const handleDownload = async () => {
-    if (!file || !completedCrop || !imgRef.current) return;
-    if (completedCrop.width === 0 || completedCrop.height === 0) return;
-
+    if (!file) return;
     setProcessing(true);
     setError(null);
     try {
-      const blob = await processCropAndExport(file, imgRef.current, completedCrop);
-      
+      const blob = await processRotateAndExport(file, { degrees, flipH, flipV });
+      // Construct new filename
       const lastDot = file.name.lastIndexOf('.');
       const base = lastDot !== -1 ? file.name.slice(0, lastDot) : file.name;
       const ext = lastDot !== -1 ? file.name.slice(lastDot) : '.jpg';
-      const outputName = `${base}-cropped${ext}`;
+      const outputName = `${base}-rotated${ext}`;
       
       saveAs(blob, outputName);
     } catch (err) {
@@ -97,10 +105,12 @@ export default function CropImage() {
 
   const clearAll = () => {
     setFile(null);
-    setImgSrc('');
-    setCrop(undefined);
-    setCompletedCrop(undefined);
+    setImageElement(null);
     setError(null);
+  };
+
+  const handleSliderChange = (e: ChangeEvent<HTMLInputElement>) => {
+    setDegrees(Number(e.target.value));
   };
 
   return (
@@ -109,9 +119,9 @@ export default function CropImage() {
         <BackButton />
         
         <div style={s.toolHero}>
-          <h1 style={s.toolTitle}>Crop Image</h1>
+          <h1 style={s.toolTitle}>Rotate Image</h1>
           <p style={s.toolDesc}>
-            Trim borders and focus on what matters. <strong>100% private</strong> — all processing happens directly in your browser, and your files never leave your device.
+            Rotate, flip, and precisely adjust your images. <strong>100% private</strong> — all processing happens directly in your browser, and your files never leave your device.
           </p>
         </div>
 
@@ -151,95 +161,78 @@ export default function CropImage() {
           </div>
         )}
 
-        {file && !!imgSrc && (
+        {file && imageElement && (
           <div style={s.workspace}>
-            
-            {/* Controls */}
-            <div style={s.aspectBar}>
-              <span style={s.aspectLabel}>Aspect Ratio:</span>
-              <div style={s.aspectOptions}>
-                {ASPECT_RATIOS.map(ratio => (
-                  <button
-                    key={ratio.label}
-                    style={{
-                      ...s.btnAspect,
-                      ...(aspect === ratio.value ? s.btnAspectActive : {}),
-                    }}
-                    onClick={() => {
-                      setAspect(ratio.value);
-                      if (ratio.value && imgRef.current) {
-                        const { width, height } = imgRef.current;
-                        const newCrop = centerCrop(
-                          makeAspectCrop(
-                            { unit: '%', width: 80 },
-                            ratio.value,
-                            width,
-                            height
-                          ),
-                          width,
-                          height
-                        );
-                        setCrop(newCrop);
-                      }
-                    }}
-                  >
-                    {ratio.icon}
-                    {ratio.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
             {/* Preview Area */}
             <div style={s.previewContainer}>
-              <ReactCrop
-                crop={crop}
-                onChange={(_, percentCrop) => setCrop(percentCrop)}
-                onComplete={(c) => setCompletedCrop(c)}
-                aspect={aspect}
-                className="custom-react-crop"
-              >
-                <img
-                  ref={imgRef}
-                  alt="Crop preview"
-                  src={imgSrc}
-                  onLoad={onImageLoad}
-                  style={s.previewImg}
-                />
-              </ReactCrop>
+              <canvas ref={canvasRef} style={s.previewCanvas} />
             </div>
 
-            <div style={s.actionsRow}>
-              <button style={s.btnGhostDanger} onClick={clearAll}>
-                <Trash2 size={14} /> Clear
-              </button>
-              <button 
-                style={s.btnPrimary} 
-                onClick={handleDownload}
-                disabled={processing || !completedCrop?.width || !completedCrop?.height}
-              >
-                {processing ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> : <Download size={14} />}
-                Download
-              </button>
+            {/* Controls */}
+            <div style={s.controlsPanel}>
+              
+              <div style={s.controlGroup}>
+                <span style={s.controlLabel}>Rotate 90°</span>
+                <div style={s.buttonRow}>
+                  <button style={s.btnControl} onClick={() => setDegrees(prev => prev - 90)} aria-label="Rotate Left">
+                    <RotateCcw size={16} /> Left
+                  </button>
+                  <button style={s.btnControl} onClick={() => setDegrees(prev => prev + 90)} aria-label="Rotate Right">
+                    <RotateCw size={16} /> Right
+                  </button>
+                </div>
+              </div>
+
+              <div style={s.controlGroup}>
+                <span style={s.controlLabel}>Flip</span>
+                <div style={s.buttonRow}>
+                  <button 
+                    style={{...s.btnControl, ...(flipH ? s.btnControlActive : {})}} 
+                    onClick={() => setFlipH(!flipH)}
+                  >
+                    <FlipHorizontal size={16} /> Horizontal
+                  </button>
+                  <button 
+                    style={{...s.btnControl, ...(flipV ? s.btnControlActive : {})}} 
+                    onClick={() => setFlipV(!flipV)}
+                  >
+                    <FlipVertical size={16} /> Vertical
+                  </button>
+                </div>
+              </div>
+
+              <div style={s.controlGroup}>
+                <span style={s.controlLabel}>Fine-tune Rotation: {degrees}°</span>
+                <input 
+                  type="range" 
+                  min="-180" 
+                  max="180" 
+                  value={degrees} 
+                  onChange={handleSliderChange}
+                  style={s.slider}
+                />
+              </div>
+
+              <div style={s.actionsRow}>
+                <button style={s.btnGhostDanger} onClick={clearAll}>
+                  <Trash2 size={14} /> Clear
+                </button>
+                <button 
+                  style={s.btnPrimary} 
+                  onClick={handleDownload}
+                  disabled={processing}
+                >
+                  {processing ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> : <Download size={14} />}
+                  Download
+                </button>
+              </div>
+
             </div>
           </div>
         )}
 
-        <OtherTools currentToolId="crop" />
+        <OtherTools currentToolId="rotate" />
       </main>
-
-      {/* Global override for crop handles to match theme */}
-      <style>{`
-        .custom-react-crop .ReactCrop__drag-handle {
-          width: 12px;
-          height: 12px;
-          border: 1px solid rgba(0,0,0,0.2);
-        }
-        .custom-react-crop .ReactCrop__drag-handle::after {
-          background-color: var(--accent);
-          border-radius: 50%;
-        }
-      `}</style>
     </>
   );
 }
@@ -304,32 +297,9 @@ const s: Record<string, CSSProperties> = {
     borderRadius: 'var(--radius-xl)',
     padding: 24,
   },
-  aspectBar: {
-    display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap',
-    padding: '10px 16px',
-    background: 'var(--bg)',
-    border: '1px solid var(--border)',
-    borderRadius: 'var(--radius)',
-  },
-  aspectLabel: {
-    fontSize: 13, fontWeight: 600, color: 'var(--text-muted)',
-  },
-  aspectOptions: {
-    display: 'flex', gap: 6, flexWrap: 'wrap',
-  },
-  btnAspect: {
-    display: 'flex', alignItems: 'center', gap: 6,
-    padding: '6px 12px', fontSize: 12, fontWeight: 500,
-    background: 'transparent', color: 'var(--text-muted)',
-    border: '1px solid var(--border)', borderRadius: 20,
-    cursor: 'pointer', transition: 'all 150ms ease', fontFamily: 'inherit',
-  },
-  btnAspectActive: {
-    background: 'var(--accent-subtle)', color: 'var(--accent-hover)',
-    border: '1px solid var(--accent)', fontWeight: 600,
-  },
   previewContainer: {
     width: '100%',
+    height: 400,
     background: 'var(--bg)',
     borderRadius: 'var(--radius)',
     border: '1px solid var(--border)',
@@ -337,21 +307,60 @@ const s: Record<string, CSSProperties> = {
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
-    padding: 0,
+    padding: 16,
   },
-  previewImg: {
-    maxHeight: '60vh',
-    display: 'block',
-    margin: '0 auto',
+  previewCanvas: {
+    maxWidth: '100%',
+    maxHeight: '100%',
+    objectFit: 'contain',
+    boxShadow: 'var(--shadow-card)',
   },
   
+  controlsPanel: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 20,
+  },
+  controlGroup: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 8,
+  },
+  controlLabel: {
+    fontSize: 13,
+    fontWeight: 600,
+    color: 'var(--text)',
+  },
+  buttonRow: {
+    display: 'flex',
+    gap: 8,
+    flexWrap: 'wrap',
+  },
+  btnControl: {
+    display: 'flex', alignItems: 'center', gap: 6,
+    padding: '8px 16px', background: 'var(--bg)', color: 'var(--text)',
+    border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)',
+    fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit',
+    transition: 'all 150ms ease', flex: '1 1 auto', justifyContent: 'center'
+  },
+  btnControlActive: {
+    background: 'var(--accent-subtle)',
+    borderColor: 'var(--accent)',
+    color: 'var(--accent-hover)',
+    fontWeight: 600,
+  },
+  slider: {
+    width: '100%',
+    cursor: 'pointer',
+  },
+
   actionsRow: {
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingTop: 16,
     borderTop: '1px solid var(--border)',
-    marginTop: 0,
+    marginTop: 8,
   },
   btnPrimary: {
     display: 'flex', alignItems: 'center', gap: 6,

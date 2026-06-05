@@ -1,5 +1,6 @@
+"use client";
 import type { CSSProperties } from 'react';
-import { Link } from 'react-router-dom';
+import Link from 'next/link';
 import { ArrowRight } from 'lucide-react';
 import { TOOLS } from '../data/tools';
 
@@ -15,7 +16,7 @@ export default function Home() {
 
       <div className="home-grid">
         {TOOLS.map((tool) => (
-          <Link to={tool.path} key={tool.id} style={s.card}>
+          <Link href={tool.path} key={tool.id} style={s.card}>
             <div style={{ ...s.iconWrapper, color: tool.color, background: `${tool.color}15` }}>
               <tool.icon size={28} />
             </div>

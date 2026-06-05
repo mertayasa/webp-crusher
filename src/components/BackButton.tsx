@@ -1,10 +1,10 @@
-import { Link } from 'react-router-dom';
+import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
 import type { CSSProperties } from 'react';
 
 export default function BackButton() {
   return (
-    <Link to="/" style={s.btn}>
+    <Link href="/" style={s.btn}>
       <ArrowLeft size={16} />
       <span>Back to Tools</span>
     </Link>

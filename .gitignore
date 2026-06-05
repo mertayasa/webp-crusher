@@ -1,3 +1,20 @@
+# Dependencies
+node_modules
+/.pnp
+.pnp.js
+
+# Testing
+/coverage
+
+# Next.js & Build Output
+.next/
+out/
+dist
+dist-ssr
+build
+*.tsbuildinfo
+next-env.d.ts
+
 # Logs
 logs
 *.log
@@ -7,10 +24,12 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
-node_modules
-dist
-dist-ssr
+# Env Files
 *.local
+.env*.local
+
+# Vercel
+.vercel
 
 # Editor directories and files
 .vscode/*

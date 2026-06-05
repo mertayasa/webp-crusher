@@ -1,5 +1,5 @@
 import type { CSSProperties } from 'react';
-import { Link } from 'react-router-dom';
+import Link from 'next/link';
 import { ArrowRight } from 'lucide-react';
 import { TOOLS } from '../data/tools';
 
@@ -15,7 +15,7 @@ export default function OtherTools({ currentToolId }: OtherToolsProps) {
       <h3 style={s.heading}>More Tools You Might Like</h3>
       <div className="home-grid" style={s.gridOverrides}>
         {otherTools.map((tool) => (
-          <Link to={tool.path} key={tool.id} style={s.card}>
+          <Link href={tool.path} key={tool.id} style={s.card}>
             <div style={{ ...s.iconWrapper, color: tool.color, background: `${tool.color}15` }}>
               <tool.icon size={22} />
             </div>

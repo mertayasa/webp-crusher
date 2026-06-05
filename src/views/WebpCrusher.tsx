@@ -1,3 +1,4 @@
+"use client";
 import { useState, useCallback } from 'react';
 import type { CSSProperties } from 'react';
 import { useDropzone } from 'react-dropzone';
@@ -13,18 +14,16 @@ import {
   XCircle,
   FileImage,
   Target,
-  Settings
 } from 'lucide-react';
 import type { ImageFile, FileStatus } from '../types';
-import { compressToFormat, compressToTargetBytesFormat } from '../utils/compressGeneral';
-import { formatBytes, calcSavings } from '../utils/format';
+import { compressToWebP, compressToTargetBytes } from '../utils/compress';
+import { formatBytes, calcSavings, toWebpName } from '../utils/format';
 import BackButton from '../components/BackButton';
 import OtherTools from '../components/OtherTools';
 import '../App.css';
 
 const CONCURRENCY = 3;
 const MAX_FILES   = 10;
-const MAX_TOTAL_BYTES = 100 * 1024 * 1024; // 100MB
 
 // Target size options — null means "quality mode" (fixed 82%)
 const SIZE_OPTIONS: Array<{ label: string; kb: number | null }> = [
@@ -37,7 +36,7 @@ const SIZE_OPTIONS: Array<{ label: string; kb: number | null }> = [
 
 const DEFAULT_TARGET_KB = 100;
 
-type PngHandling = 'webp' | 'jpg' | 'png';
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function statusColor(status: FileStatus): string {
   switch (status) {
@@ -48,59 +47,33 @@ function statusColor(status: FileStatus): string {
   }
 }
 
-export default function CompressImage() {
+// ─── App ──────────────────────────────────────────────────────────────────────
+
+export default function WebpCrusher() {
   const [files, setFiles]         = useState<ImageFile[]>([]);
   const [zipping, setZipping]     = useState(false);
   const [targetKB, setTargetKB]   = useState<number | null>(DEFAULT_TARGET_KB);
-  const [pngHandling, setPngHandling] = useState<PngHandling>('webp');
-  const [trimmed, setTrimmed]     = useState(false);
-  const [sizeError, setSizeError] = useState(false);
+  const [trimmed, setTrimmed]     = useState(false); // true when we had to drop files over the limit
 
-  const totalCurrentSize = files.reduce((acc, f) => acc + f.originalSize, 0);
+  // Locked only when the 10-file cap is reached
   const isLocked = files.length >= MAX_FILES;
 
-  const getTargetMime = (fileType: string, pngPref: PngHandling) => {
-    if (fileType === 'image/png') {
-      if (pngPref === 'webp') return 'image/webp';
-      if (pngPref === 'jpg') return 'image/jpeg';
-      return 'image/png';
-    }
-    return fileType;
-  };
-
-  const getNewExt = (mimeType: string, originalName: string) => {
-    const extMatch = originalName.match(/\.([^.]+)$/);
-    const originalExt = extMatch ? extMatch[1].toLowerCase() : '';
-    if (mimeType === 'image/webp' && originalExt !== 'webp') return 'webp';
-    if (mimeType === 'image/jpeg' && (originalExt !== 'jpg' && originalExt !== 'jpeg')) return 'jpg';
-    if (mimeType === 'image/png' && originalExt !== 'png') return 'png';
-    return originalExt || 'jpg';
-  };
-
+  // ── Process a single file
   const processFile = useCallback(async (
     id: string,
     file: File,
     kb: number | null,
-    pngPref: PngHandling
   ) => {
     setFiles(prev =>
       prev.map(f => f.id === id ? { ...f, status: 'processing' as FileStatus } : f),
     );
     try {
-      const mimeType = getTargetMime(file.type, pngPref);
-      
       const blob = kb !== null
-        ? await compressToTargetBytesFormat(file, kb * 1024, mimeType)
-        : await compressToFormat(file, mimeType, 0.82);
+        ? await compressToTargetBytes(file, kb * 1024)
+        : await compressToWebP(file, 0.82);
 
-      const keptOriginal = blob.size >= file.size;
-
-      const finalMime = keptOriginal ? file.type : blob.type;
-      const newExt = getNewExt(finalMime, file.name);
-      
-      const lastDot = file.name.lastIndexOf('.');
-      const base = lastDot !== -1 ? file.name.slice(0, lastDot) : file.name;
-      const outputName = keptOriginal ? file.name : `${base}.${newExt}`;
+      // Detect if the engine fell back to the original (blob.type won't be webp)
+      const keptOriginal = blob.type !== 'image/webp';
 
       setFiles(prev =>
         prev.map(f =>
@@ -111,7 +84,8 @@ export default function CompressImage() {
                 blob,
                 compressedSize: blob.size,
                 keptOriginal,
-                webpName: outputName, 
+                // Update filename: keep original ext if we couldn't beat it
+                webpName: keptOriginal ? file.name : toWebpName(file.name),
               }
             : f,
         ),
@@ -127,38 +101,19 @@ export default function CompressImage() {
     }
   }, []);
 
+  // ── Drop handler
   const onDrop = useCallback(
     (accepted: File[]) => {
       if (!accepted.length || isLocked) return;
-      setSizeError(false);
 
-      const currentTarget = targetKB;
-      const currentPngHandling = pngHandling;
+      const currentTarget = targetKB; // capture at drop time
 
+      // Calculate how many slots are still available
       const slotsLeft = MAX_FILES - files.length;
       const sliced    = accepted.slice(0, slotsLeft);
       setTrimmed(accepted.length > slotsLeft);
 
-      let currentSize = totalCurrentSize;
-      const validFiles: File[] = [];
-      let skippedSize = false;
-
-      for (const file of sliced) {
-        if (currentSize + file.size <= MAX_TOTAL_BYTES) {
-          validFiles.push(file);
-          currentSize += file.size;
-        } else {
-          skippedSize = true;
-        }
-      }
-
-      if (skippedSize) {
-        setSizeError(true);
-      }
-
-      if (!validFiles.length) return;
-
-      const newFiles: ImageFile[] = validFiles.map(file => ({
+      const newFiles: ImageFile[] = sliced.map(file => ({
         id: crypto.randomUUID(),
         name: file.name,
         originalFile: file,
@@ -166,23 +121,24 @@ export default function CompressImage() {
         blob: null,
         compressedSize: null,
         status: 'pending',
-        webpName: file.name,
+        webpName: toWebpName(file.name),
         keptOriginal: false,
       }));
 
+      // Append to existing queue (don't replace it)
       setFiles(prev => [...prev, ...newFiles]);
 
       const run = async () => {
         for (let i = 0; i < newFiles.length; i += CONCURRENCY) {
           const batch = newFiles.slice(i, i + CONCURRENCY);
           await Promise.all(
-            batch.map(f => processFile(f.id, f.originalFile, currentTarget, currentPngHandling)),
+            batch.map(f => processFile(f.id, f.originalFile, currentTarget)),
           );
         }
       };
       run();
     },
-    [processFile, targetKB, pngHandling, isLocked, files.length, totalCurrentSize],
+    [processFile, targetKB, isLocked, files.length],
   );
 
   const { getRootProps, getInputProps, isDragActive, isDragReject } = useDropzone({
@@ -191,17 +147,17 @@ export default function CompressImage() {
     accept: {
       'image/png':  ['.png'],
       'image/jpeg': ['.jpg', '.jpeg'],
-      'image/webp': ['.webp'],
-      'image/avif': ['.avif'],
     },
     multiple: true,
   });
 
+  // ── Download single
   const downloadOne = (file: ImageFile) => {
     if (!file.blob) return;
     saveAs(file.blob, file.webpName);
   };
 
+  // ── Download all ZIP
   const downloadAll = async () => {
     const done = files.filter(f => f.status === 'done' && f.blob);
     if (!done.length) return;
@@ -210,18 +166,15 @@ export default function CompressImage() {
       const zip = new JSZip();
       done.forEach(f => zip.file(f.webpName, f.blob!));
       const content = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE' });
-      saveAs(content, 'compressed-images.zip');
+      saveAs(content, 'webp-images.zip');
     } finally {
       setZipping(false);
     }
   };
 
-  const clearAll = () => { 
-    setFiles([]); 
-    setTrimmed(false); 
-    setSizeError(false); 
-  };
+  const clearAll = () => { setFiles([]); setTrimmed(false); };
 
+  // ── Derived stats
   const total              = files.length;
   const doneCount          = files.filter(f => f.status === 'done').length;
   const processingCount    = files.filter(f => f.status === 'processing' || f.status === 'pending').length;
@@ -232,52 +185,43 @@ export default function CompressImage() {
   const totalOriginal      = compressedFiles.reduce((a, f) => a + f.originalSize, 0);
   const overallSavings     = compressedFiles.length > 0 ? calcSavings(totalOriginal, totalCompressed) : 0;
 
+  // ─────────────────────────────────────────────────────────────────────────────
+
   return (
     <>
       <main style={s.main}>
         <BackButton />
         
         <div style={s.toolHero}>
-          <h1 style={s.toolTitle}>Image Compressor</h1>
+          <h1 style={s.toolTitle}>WebP Crusher</h1>
           <p style={s.toolDesc}>
-            Shrink image file sizes without losing noticeable quality. <strong>100% private</strong> — all processing happens directly in your browser, and your files never leave your device.
+            Compress PNG and JPG images into highly optimized WebP files. <strong>100% private</strong> — all processing happens directly in your browser, and your files never leave your device.
           </p>
         </div>
 
-        {/* ── Configuration Bar */}
-        <div style={s.configContainer}>
-          {/* Target Size */}
-          <div style={s.targetBar}>
-            <span style={s.targetLabel}><Target size={14} /> Target size:</span>
-            <div style={s.targetOptions}>
-              {SIZE_OPTIONS.map(opt => (
-                <button
-                  key={opt.label}
-                  style={{
-                    ...s.targetBtn,
-                    ...(targetKB === opt.kb ? s.targetBtnActive : {}),
-                  }}
-                  onClick={() => setTargetKB(opt.kb)}
-                >
-                  {opt.label}
-                </button>
-              ))}
-            </div>
+        {/* ── Target Size Selector */}
+        <div style={s.targetBar}>
+          <span style={s.targetLabel}><Target size={13} /> Target size:</span>
+          <div style={s.targetOptions} role="group" aria-label="Target output file size">
+            {SIZE_OPTIONS.map(opt => (
+              <button
+                key={opt.label}
+                style={{
+                  ...s.targetBtn,
+                  ...(targetKB === opt.kb ? s.targetBtnActive : {}),
+                }}
+                onClick={() => setTargetKB(opt.kb)}
+                aria-pressed={targetKB === opt.kb}
+              >
+                {opt.label}
+              </button>
+            ))}
           </div>
-          
-          {/* PNG Handling */}
-          <div style={s.pngBar}>
-            <span style={s.targetLabel}><Settings size={14} /> PNG Handling:</span>
-            <select 
-              value={pngHandling} 
-              onChange={e => setPngHandling(e.target.value as PngHandling)}
-              style={s.selectInput}
-            >
-              <option value="webp">Convert to WebP (Recommended, smallest size)</option>
-              <option value="jpg">Convert to JPG</option>
-              <option value="png">Keep as PNG (Only shrinks by resizing)</option>
-            </select>
-          </div>
+          {targetKB !== null && (
+            <span style={s.targetNote}>
+              Binary search quality + auto-resize to fit ≤ {targetKB} KB
+            </span>
+          )}
         </div>
 
         {/* ── Drop Zone */}
@@ -289,6 +233,7 @@ export default function CompressImage() {
             ...(!isLocked && isDragActive && !isDragReject ? s.dropzoneActive : {}),
             ...(!isLocked && isDragReject ? s.dropzoneReject : {}),
           }}
+          aria-label={isLocked ? 'Clear files to start a new batch' : 'Drop PNG or JPG files here'}
         >
           <input {...getInputProps()} />
           <div style={s.dropContent}>
@@ -303,31 +248,27 @@ export default function CompressImage() {
               {isLocked
                 ? 'Clear all files below to start a new batch'
                 : isDragReject
-                  ? 'Only valid images are accepted'
+                  ? 'Only PNG and JPG files are accepted'
                   : isDragActive
                     ? 'Release to compress!'
-                    : `Drop up to ${MAX_FILES} images here (Max 100MB)`}
+                    : `Drop up to ${MAX_FILES} PNG or JPG files here`}
             </p>
             <p style={s.dropSub}>
               {isLocked
                 ? 'Clear files to free up slots'
                 : !isDragReject
                   ? files.length > 0
-                    ? `${MAX_FILES - files.length} slot${MAX_FILES - files.length !== 1 ? 's' : ''} remaining`
-                    : `Accepts JPG, PNG, WebP, AVIF`
+                    ? `${MAX_FILES - files.length} slot${MAX_FILES - files.length !== 1 ? 's' : ''} remaining · click or drop more`
+                    : `or click to browse · up to ${MAX_FILES} files`
                   : ''}
             </p>
           </div>
         </div>
 
+        {/* ── Trimmed notice */}
         {trimmed && (
           <div style={s.notice}>
             Some files were skipped — only {MAX_FILES - files.length} slot{MAX_FILES - files.length !== 1 ? 's' : ''} were available.
-          </div>
-        )}
-        {sizeError && (
-          <div style={s.notice}>
-            Some files were skipped to stay under the 100MB total limit.
           </div>
         )}
 
@@ -335,13 +276,14 @@ export default function CompressImage() {
         {total > 0 && (
           <div style={s.toolbar}>
             <div style={s.toolbarLeft}>
+              {/* File counter */}
               <span style={s.counter}>
                 {total} / {MAX_FILES}
               </span>
               {processingCount > 0 ? (
                 <span style={s.statBusy}>
                   <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} />
-                  {targetKB ? `Compressing to ≤${targetKB} KB…` : 'Compressing…'}
+                  {targetKB ? `Searching optimal quality…` : 'Converting…'}
                   &nbsp;({processingCount} remaining)
                 </span>
               ) : (
@@ -356,6 +298,11 @@ export default function CompressImage() {
                   )}
                 </span>
               )}
+              {compressedFiles.length > 0 && (
+                <span style={s.sizes}>
+                  {formatBytes(totalOriginal)} → {formatBytes(totalCompressed)}
+                </span>
+              )}
             </div>
             <div style={s.toolbarRight}>
               {doneCount > 1 && (
@@ -363,6 +310,7 @@ export default function CompressImage() {
                   style={s.btnPrimary}
                   onClick={downloadAll}
                   disabled={zipping}
+                  aria-label="Download all as ZIP"
                 >
                   {zipping
                     ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} />
@@ -370,7 +318,7 @@ export default function CompressImage() {
                   {zipping ? 'Zipping…' : 'Download All ZIP'}
                 </button>
               )}
-              <button style={s.btnGhostDanger} onClick={clearAll}>
+              <button style={s.btnGhostDanger} onClick={clearAll} aria-label="Clear all files to start new batch">
                 <Trash2 size={14} />
                 Clear All
               </button>
@@ -380,9 +328,10 @@ export default function CompressImage() {
 
         {/* ── File List */}
         {files.length > 0 && (
-          <ul style={s.list}>
+          <ul style={s.list} aria-label="File conversion queue">
             {files.map(file => (
               <li key={file.id} style={s.card}>
+                {/* Left: icon + filenames */}
                 <div style={s.cardLeft}>
                   <div style={{ color: statusColor(file.status), flexShrink: 0 }}>
                     <FileImage size={20} />
@@ -393,16 +342,19 @@ export default function CompressImage() {
                   </div>
                 </div>
 
+                {/* Middle: status / progress / sizes */}
                 <div style={s.cardMid}>
-                  {file.status === 'pending' && <span style={s.pillMuted}>Queued</span>}
-                  
+                  {file.status === 'pending' && (
+                    <span style={s.pillMuted}>Queued</span>
+                  )}
+
                   {file.status === 'processing' && (
                     <div style={s.progressWrap}>
                       <div style={s.progressTrack}>
                         <div style={s.progressBar} />
                       </div>
                       <span style={s.progressLabel}>
-                        {targetKB ? `Compressing to ≤${targetKB} KB…` : 'Compressing…'}
+                        {targetKB ? `Optimizing to ≤${targetKB} KB…` : 'Converting…'}
                       </span>
                     </div>
                   )}
@@ -413,13 +365,14 @@ export default function CompressImage() {
                       <span style={s.sizeArrow}>→</span>
                       <span style={s.sizeNew}>{formatBytes(file.compressedSize)}</span>
                       {file.keptOriginal ? (
-                        <span style={s.keptPill} title="Compression couldn't shrink it further">
+                        <span style={s.keptPill} title="WebP would be larger — original format kept">
                           Original kept
                         </span>
                       ) : (
                         <span style={{
                           ...s.savingsPill,
-                          ...(targetKB && file.compressedSize > targetKB * 1024 ? s.savingsPillWarn : {}),
+                          ...(targetKB && file.compressedSize > targetKB * 1024
+                            ? s.savingsPillWarn : {}),
                         }}>
                           {targetKB && file.compressedSize > targetKB * 1024
                             ? 'best effort'
@@ -432,14 +385,19 @@ export default function CompressImage() {
                   {file.status === 'error' && (
                     <span style={s.errorRow} title={file.error}>
                       <XCircle size={13} />
-                      {file.error ?? 'Failed'}
+                      {file.error ?? 'Conversion failed'}
                     </span>
                   )}
                 </div>
 
+                {/* Right: action */}
                 <div style={s.cardRight}>
                   {file.status === 'done' && (
-                    <button style={s.btnDownload} onClick={() => downloadOne(file)}>
+                    <button
+                      style={s.btnDownload}
+                      onClick={() => downloadOne(file)}
+                      aria-label={`Download ${file.webpName}`}
+                    >
                       <Download size={13} />
                       Download
                     </button>
@@ -457,6 +415,7 @@ export default function CompressImage() {
           </ul>
         )}
 
+        {/* ── Empty state */}
         {files.length === 0 && (
           <div style={s.empty}>
             <FileImage size={38} color="var(--text-dim)" />
@@ -464,7 +423,7 @@ export default function CompressImage() {
           </div>
         )}
 
-        <OtherTools currentToolId="compress" />
+        <OtherTools currentToolId="webp-crusher" />
       </main>
     </>
   );
@@ -473,10 +432,39 @@ export default function CompressImage() {
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const s: Record<string, CSSProperties> = {
+  root: { minHeight: '100vh', display: 'flex', flexDirection: 'column', background: 'var(--bg)' },
+
+  // Header
+  header: {
+    borderBottom: '1px solid var(--border)',
+    background: 'var(--bg-surface)',
+    position: 'sticky', top: 0, zIndex: 10,
+  },
+  headerInner: {
+    maxWidth: 860, margin: '0 auto', padding: '13px 24px',
+    display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
+  },
+  logo: { display: 'flex', alignItems: 'center', gap: 10 },
+  logoIcon: {
+    width: 32, height: 32, borderRadius: 8,
+    background: 'linear-gradient(135deg, var(--accent), #8b5cf6)',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    boxShadow: '0 0 14px var(--accent-glow)',
+  },
+  logoText: { fontSize: 16, fontWeight: 700, color: 'var(--text)', letterSpacing: '-0.3px' },
+  headerBadge: {
+    fontSize: 11, color: 'var(--text-muted)',
+    background: 'var(--bg-elevated)', padding: '3px 10px',
+    borderRadius: 20, border: '1px solid var(--border)',
+  },
+
+  // Main
   main: {
     flex: 1, maxWidth: 860, width: '100%', margin: '0 auto',
     padding: '28px 24px', display: 'flex', flexDirection: 'column', gap: 16,
   },
+
+  // Hero
   toolHero: {
     marginBottom: 8,
   },
@@ -492,19 +480,9 @@ const s: Record<string, CSSProperties> = {
     color: 'var(--text-muted)',
     lineHeight: 1.5,
   },
-  configContainer: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: 12,
-  },
+
+  // Target size bar
   targetBar: {
-    display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap',
-    padding: '10px 16px',
-    background: 'var(--bg-surface)',
-    border: '1px solid var(--border)',
-    borderRadius: 'var(--radius)',
-  },
-  pngBar: {
     display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap',
     padding: '10px 16px',
     background: 'var(--bg-surface)',
@@ -513,12 +491,12 @@ const s: Record<string, CSSProperties> = {
   },
   targetLabel: {
     display: 'flex', alignItems: 'center', gap: 5,
-    fontSize: 13, fontWeight: 600, color: 'var(--text-muted)',
+    fontSize: 12, fontWeight: 600, color: 'var(--text-muted)',
     whiteSpace: 'nowrap',
   },
-  targetOptions: { display: 'flex', gap: 6, flexWrap: 'wrap' },
+  targetOptions: { display: 'flex', gap: 4, flexWrap: 'wrap' },
   targetBtn: {
-    padding: '5px 14px', fontSize: 13, fontWeight: 500,
+    padding: '4px 12px', fontSize: 12, fontWeight: 500,
     background: 'transparent', color: 'var(--text-muted)',
     border: '1px solid var(--border)', borderRadius: 20,
     cursor: 'pointer', transition: 'all 150ms ease', fontFamily: 'inherit',
@@ -527,17 +505,13 @@ const s: Record<string, CSSProperties> = {
     background: 'var(--accent-subtle)', color: 'var(--accent-hover)',
     border: '1px solid var(--accent)', fontWeight: 600,
   },
-  selectInput: {
-    padding: '6px 10px',
-    fontSize: '13px',
-    fontWeight: 500,
-    border: '1px solid var(--border)',
-    borderRadius: 'var(--radius-sm)',
-    background: 'var(--bg)',
-    color: 'var(--text)',
-    cursor: 'pointer',
-    fontFamily: 'inherit',
+  targetNote: {
+    fontSize: 11, color: 'var(--text-muted)',
+    borderLeft: '1px solid var(--border)', paddingLeft: 12,
+    flexShrink: 0,
   },
+
+  // Drop zone
   dropzone: {
     border: '2px dashed var(--border)', borderRadius: 'var(--radius-xl)',
     padding: '44px 24px', textAlign: 'center', cursor: 'pointer',
@@ -566,6 +540,8 @@ const s: Record<string, CSSProperties> = {
   dropIconLocked: { background: 'var(--bg-elevated)', border: '1px solid var(--border)' },
   dropTitle: { fontSize: 15, fontWeight: 600, color: 'var(--text)' },
   dropSub:   { fontSize: 13, color: 'var(--text-muted)' },
+
+  // Trimmed notice
   notice: {
     display: 'flex', alignItems: 'center', justifyContent: 'center',
     padding: '8px 16px',
@@ -574,6 +550,8 @@ const s: Record<string, CSSProperties> = {
     borderRadius: 'var(--radius)',
     fontSize: 12, color: 'var(--warning)', fontWeight: 500,
   },
+
+  // Toolbar
   toolbar: {
     display: 'flex', alignItems: 'center', justifyContent: 'space-between',
     flexWrap: 'wrap', gap: 10,
@@ -598,12 +576,21 @@ const s: Record<string, CSSProperties> = {
     background: 'rgba(245,158,11,0.12)', color: 'var(--warning)',
     padding: '2px 8px', borderRadius: 20, fontSize: 11, fontWeight: 700, marginLeft: 2,
   },
+  sizes: { fontSize: 12, color: 'var(--text-muted)' },
+
+  // Buttons
   btnPrimary: {
     display: 'flex', alignItems: 'center', gap: 6,
     padding: '7px 15px', background: 'var(--accent)', color: '#fff',
     border: 'none', borderRadius: 'var(--radius-sm)',
     fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
     transition: 'background 150ms ease',
+  },
+  btnGhost: {
+    display: 'flex', alignItems: 'center', gap: 6,
+    padding: '7px 13px', background: 'transparent', color: 'var(--text-muted)',
+    border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)',
+    fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit',
   },
   btnGhostDanger: {
     display: 'flex', alignItems: 'center', gap: 6,
@@ -620,6 +607,8 @@ const s: Record<string, CSSProperties> = {
     border: '1px solid rgba(16,185,129,0.25)', borderRadius: 'var(--radius-sm)',
     fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap',
   },
+
+  // File list
   list: { listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 7 },
   card: {
     display: 'flex', alignItems: 'center', gap: 14,
@@ -631,12 +620,15 @@ const s: Record<string, CSSProperties> = {
   fileNames: { display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 },
   fileOut: { fontSize: 13, fontWeight: 600, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
   fileIn:  { fontSize: 11, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
+
   cardMid: { flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' },
+
   pillMuted: {
     fontSize: 12, color: 'var(--text-muted)',
     background: 'var(--bg-elevated)', padding: '3px 10px',
     borderRadius: 20, border: '1px solid var(--border)',
   },
+
   progressWrap:  { display: 'flex', flexDirection: 'column', gap: 4, width: '100%', maxWidth: 210 },
   progressTrack: { height: 3, background: 'var(--border)', borderRadius: 2, overflow: 'hidden', position: 'relative' },
   progressBar:   {
@@ -645,6 +637,7 @@ const s: Record<string, CSSProperties> = {
     animation: 'shimmer 1.4s ease infinite', borderRadius: 2,
   },
   progressLabel: { fontSize: 11, color: 'var(--accent)', textAlign: 'center' },
+
   sizeRow: { display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', justifyContent: 'center' },
   sizeOrig:  { fontSize: 12, color: 'var(--text-muted)' },
   sizeArrow: { fontSize: 12, color: 'var(--border-hover)' },
@@ -661,11 +654,21 @@ const s: Record<string, CSSProperties> = {
     padding: '2px 8px', borderRadius: 20, fontSize: 11, fontWeight: 700,
     cursor: 'help',
   },
+
   errorRow: {
     display: 'flex', alignItems: 'center', gap: 5,
     fontSize: 12, color: 'var(--error)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 200,
   },
+
   cardRight: { flex: '0 0 auto', display: 'flex', alignItems: 'center' },
+
+  // Empty
   empty:     { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, padding: '44px 0', color: 'var(--text-dim)' },
   emptyText: { fontSize: 14, color: 'var(--text-muted)', textAlign: 'center' },
+
+  // Footer
+  footer: {
+    padding: '14px 24px', textAlign: 'center',
+    fontSize: 12, color: 'var(--text-muted)', borderTop: '1px solid var(--border)',
+  },
 };

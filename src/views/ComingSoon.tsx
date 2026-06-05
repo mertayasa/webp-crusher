@@ -1,13 +1,14 @@
+"use client";
 import type { CSSProperties } from 'react';
 import { Construction } from 'lucide-react';
-import { useLocation } from 'react-router-dom';
+import { usePathname } from 'next/navigation';
 import BackButton from '../components/BackButton';
 import OtherTools from '../components/OtherTools';
 import { TOOLS } from '../data/tools';
 
 export default function ComingSoon() {
-  const location = useLocation();
-  const currentToolId = location.pathname.split('/')[1] || '';
+  const pathname = usePathname();
+  const currentToolId = pathname ? pathname.split('/')[1] || '' : '';
   const currentTool = TOOLS.find(t => t.id === currentToolId);
 
   return (
