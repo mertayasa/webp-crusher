@@ -15,6 +15,7 @@ import {
   Zap,
   Target,
 } from 'lucide-react';
+import { Analytics } from '@vercel/analytics/react';
 import type { ImageFile, FileStatus } from './types';
 import { compressToWebP, compressToTargetBytes } from './utils/compress';
 import { formatBytes, calcSavings, toWebpName } from './utils/format';
@@ -427,6 +428,7 @@ export default function App() {
       <footer style={s.footer}>
         All processing happens in your browser — files never leave your device.
       </footer>
+      <Analytics />
     </div>
   );
 }
