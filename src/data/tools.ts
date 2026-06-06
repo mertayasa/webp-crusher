@@ -9,17 +9,26 @@ import {
   Type,
   Crop,
   FileText,
+  PenTool,
+  Palette,
+  Wand2,
+  Scissors,
 } from 'lucide-react';
 
 export const TOOLS = [
   { id: 'webp-crusher', path: '/webp-crusher', name: 'WebP Crusher', icon: Zap, color: '#8b5cf6', desc: 'Convert PNG & JPG to WebP efficiently' },
   { id: 'compress', path: '/compress', name: 'Compress Image', icon: Minimize2, color: '#10b981', desc: 'Reduce file size without losing quality' },
   { id: 'resize', path: '/resize', name: 'Resize Image', icon: Maximize2, color: '#3b82f6', desc: 'Change dimensions of your images' },
-  { id: 'upscale', path: '/upscale', name: 'Upscale Image', icon: Scaling, color: '#f59e0b', desc: 'Increase resolution with AI' },
+  { id: 'upscale', path: '/upscale', name: 'Simple AI Image Upscale', icon: Scaling, color: '#f59e0b', desc: 'Upscale 2x or 4x with real-esrgan' },
   { id: 'convert', path: '/convert', name: 'Convert Format', icon: RefreshCw, color: '#ef4444', desc: 'Convert between various image formats' },
   { id: 'rotate', path: '/rotate', name: 'Rotate Image', icon: ImagePlay, color: '#06b6d4', desc: 'Rotate or flip your images' },
   { id: 'pdf-to-image', path: '/pdf-to-image', name: 'PDF to Image', icon: FileImage, color: '#ec4899', desc: 'Extract pages from PDF to images' },
   { id: 'compress-pdf', path: '/compress-pdf', name: 'Compress PDF', icon: FileText, color: '#10b981', desc: 'Compress and optimize PDF document size' },
   { id: 'watermark', path: '/watermark', name: 'Watermark Image', icon: Type, color: '#6366f1', desc: 'Add text or logo watermarks' },
   { id: 'crop', path: '/crop', name: 'Crop Image', icon: Crop, color: '#84cc16', desc: 'Crop out unwanted parts of an image' },
+  { id: 'vectorize', path: '/vectorize', name: 'Vectorize Image', icon: PenTool, color: '#a855f7', desc: 'Convert images to scalable SVG vectors' },
+  { id: 'image-to-pdf', path: '/image-to-pdf', name: 'Image to PDF', icon: FileImage, color: '#f97316', desc: 'Compile multiple images into a single PDF' },
+  { id: 'palette', path: '/palette', name: 'Color Palette', icon: Palette, color: '#ec4899', desc: 'Extract dominant colors from any image' },
+  { id: 'remove-bg', path: '/remove-bg', name: 'Remove Background', icon: Wand2, color: '#14b8a6', desc: 'AI-powered background removal' },
+  { id: 'split-pdf', path: '/split-pdf', name: 'Split PDF', icon: Scissors, color: '#eab308', desc: 'Extract or remove specific PDF pages' },
 ];
