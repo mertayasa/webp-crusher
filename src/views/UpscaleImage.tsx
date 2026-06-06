@@ -67,6 +67,7 @@ export default function UpscaleImage() {
   const [zipping, setZipping] = useState(false);
   const [trimmed, setTrimmed] = useState(false);
   const [sizeError, setSizeError] = useState(false);
+  const [resolutionError, setResolutionError] = useState(false);
 
   const totalCurrentSize = files.reduce((acc, f) => acc + f.originalSize, 0);
   const isLocked = files.length >= MAX_FILES;
@@ -114,6 +115,7 @@ export default function UpscaleImage() {
     setFiles([]);
     setTrimmed(false);
     setSizeError(false);
+    setResolutionError(false);
   };
 
   const getImageDimensions = (file: File): Promise<{ width: number; height: number }> => {
@@ -136,6 +138,7 @@ export default function UpscaleImage() {
     async (accepted: File[]) => {
       if (!accepted.length || isLocked) return;
       setSizeError(false);
+      setResolutionError(false);
 
       const slotsLeft = MAX_FILES - files.length;
       const sliced = accepted.slice(0, slotsLeft);
@@ -161,10 +164,16 @@ export default function UpscaleImage() {
       if (!validFiles.length) return;
 
       const newFiles: UpscaledFile[] = [];
+      let skippedResolution = false;
 
       for (const file of validFiles) {
         try {
           const dims = await getImageDimensions(file);
+          // Block images larger than 5 Megapixels (e.g. 2500x2000) or 5MB file size to prevent WebGL crash
+          if (dims.width * dims.height > 5000000 || file.size > 5 * 1024 * 1024) {
+            skippedResolution = true;
+            continue;
+          }
           newFiles.push({
             id: crypto.randomUUID(),
             name: file.name,
@@ -182,6 +191,10 @@ export default function UpscaleImage() {
         } catch (err) {
           console.error("Failed to parse dimensions", file.name, err);
         }
+      }
+
+      if (skippedResolution) {
+        setResolutionError(true);
       }
 
       setFiles(prev => [...prev, ...newFiles]);
@@ -351,6 +364,10 @@ export default function UpscaleImage() {
         <p style={s.toolDesc}>
           Increase resolution of your images using high-quality Super-Resolution neural models. <strong>100% private</strong> — all processing runs locally inside your browser GPU/CPU.
         </p>
+        <div style={{ ...s.notice, marginTop: 12, display: 'inline-flex' }}>
+          <Settings size={14} style={{ marginRight: 6 }} />
+          AI Upscaling is hardware intensive. To prevent browser crashes, input images are limited to 5 Megapixels (e.g. 2500x2000px) or 5MB.
+        </div>
       </div>
 
       {/* ── Configuration Bar */}
@@ -440,6 +457,7 @@ export default function UpscaleImage() {
 
       {trimmed && <div style={s.notice}>Some files were skipped — slots are full.</div>}
       {sizeError && <div style={s.notice}>Some files were skipped to stay under 100MB.</div>}
+      {resolutionError && <div style={s.notice}>Some images were skipped because they exceed the 5 Megapixel or 5MB limit.</div>}
       {loadingError && <div style={s.errorNotice}><XCircle size={14} style={{ marginRight: 6 }} />{loadingError}</div>}
 
       {/* ── Toolbar */}

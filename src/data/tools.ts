@@ -8,6 +8,7 @@ import {
   ImagePlay,
   Type,
   Crop,
+  FileText,
 } from 'lucide-react';
 
 export const TOOLS = [
@@ -18,6 +19,7 @@ export const TOOLS = [
   { id: 'convert', path: '/convert', name: 'Convert Format', icon: RefreshCw, color: '#ef4444', desc: 'Convert between various image formats' },
   { id: 'rotate', path: '/rotate', name: 'Rotate Image', icon: ImagePlay, color: '#06b6d4', desc: 'Rotate or flip your images' },
   { id: 'pdf-to-image', path: '/pdf-to-image', name: 'PDF to Image', icon: FileImage, color: '#ec4899', desc: 'Extract pages from PDF to images' },
+  { id: 'compress-pdf', path: '/compress-pdf', name: 'Compress PDF', icon: FileText, color: '#10b981', desc: 'Compress and optimize PDF document size' },
   { id: 'watermark', path: '/watermark', name: 'Watermark Image', icon: Type, color: '#6366f1', desc: 'Add text or logo watermarks' },
   { id: 'crop', path: '/crop', name: 'Crop Image', icon: Crop, color: '#84cc16', desc: 'Crop out unwanted parts of an image' },
 ];
