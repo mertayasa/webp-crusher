@@ -8,18 +8,29 @@ import '../index.css';
 import '../App.css';
 
 export const metadata: Metadata = {
+  metadataBase: new URL('https://imageslayer.com'),
   title: {
     template: '%s | Image Slayer',
-    default: 'Image Slayer | Private & Free Browser Image Tools',
+    default: 'Image Slayer | 100% Private Client-Side Image Tools',
   },
-  description: '100% private, client-side media tools. Compress, resize, convert, crop, and watermark images securely in your browser.',
+  description: 'The ultimate suite of fast, free, and 100% private image & PDF tools. Resize, compress, convert, remove backgrounds, upscale, and more locally in your browser.',
+  keywords: ['image tools', 'pdf tools', 'private image editor', 'remove background', 'compress image', 'webp converter', 'client side processing'],
+  authors: [{ name: 'Image Slayer' }],
   icons: {
     icon: '/favicon.ico',
   },
   openGraph: {
-    title: 'Image Slayer | Private & Free Browser Image Tools',
-    description: '100% private, client-side media tools. Compress, resize, convert, crop, and watermark images securely in your browser.',
+    title: 'Image Slayer | 100% Private Client-Side Image Tools',
+    description: 'Blazing fast, secure, and private browser-based image and PDF tools.',
+    url: 'https://imageslayer.com',
+    siteName: 'Image Slayer',
+    locale: 'en_US',
     type: 'website',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Image Slayer | 100% Private Client-Side Image Tools',
+    description: 'Blazing fast, secure, and private browser-based image and PDF tools.',
   },
 };
 

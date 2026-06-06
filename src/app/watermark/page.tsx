@@ -3,7 +3,8 @@ import WatermarkImage from '../../views/WatermarkImage';
 
 export const metadata: Metadata = {
   title: 'Watermark Image',
-  description: 'Add text or logo watermarks completely private and client-side.',
+  description: 'Protect your images by adding custom text or logo watermarks. Your files remain 100% private and are processed locally.',
+  alternates: { canonical: '/watermark' },
 };
 
 export default function Page() {

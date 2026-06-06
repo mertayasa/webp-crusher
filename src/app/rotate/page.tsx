@@ -3,7 +3,8 @@ import RotateImage from '../../views/RotateImage';
 
 export const metadata: Metadata = {
   title: 'Rotate Image',
-  description: 'Rotate or flip your images securely in your browser.',
+  description: 'Rotate and flip your images locally and instantly without uploading them to any server.',
+  alternates: { canonical: '/rotate' },
 };
 
 export default function Page() {

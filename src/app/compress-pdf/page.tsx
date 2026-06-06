@@ -3,7 +3,8 @@ import CompressPdfClient from './CompressPdfClient';
 
 export const metadata: Metadata = {
   title: 'Compress PDF',
-  description: 'Compress and optimize PDF file sizes locally in your browser.',
+  description: 'Reduce PDF file sizes instantly and securely right in your browser. No files are ever uploaded to a server.',
+  alternates: { canonical: '/compress-pdf' },
 };
 
 export default function Page() {
