@@ -10,16 +10,20 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@tensorflow/tfjs": "^4.11.0",
+    "@upscalerjs/esrgan-slim": "^1.0.0",
     "@vercel/analytics": "^2.0.1",
     "file-saver": "^2.0.5",
     "jszip": "^3.10.1",
     "lucide-react": "^1.17.0",
     "next": "^16.2.7",
+    "pdfjs-dist": "^6.0.227",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
     "react-draggable": "^4.6.0",
     "react-dropzone": "^15.0.0",
-    "react-image-crop": "^11.0.10"
+    "react-image-crop": "^11.0.10",
+    "upscaler": "^1.0.0"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

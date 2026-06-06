@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import ComingSoon from '../../views/ComingSoon';
+import PdfToImageClient from './PdfToImageClient';
 
 export const metadata: Metadata = {
   title: 'PDF to Image',
@@ -7,5 +7,5 @@ export const metadata: Metadata = {
 };
 
 export default function Page() {
-  return <ComingSoon />;
+  return <PdfToImageClient />;
 }

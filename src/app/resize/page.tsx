@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import ComingSoon from '../../views/ComingSoon';
+import ResizeClient from './ResizeClient';
 
 export const metadata: Metadata = {
   title: 'Resize Image',
@@ -7,5 +7,5 @@ export const metadata: Metadata = {
 };
 
 export default function Page() {
-  return <ComingSoon />;
+  return <ResizeClient />;
 }
