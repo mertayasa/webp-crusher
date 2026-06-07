@@ -57,15 +57,12 @@ export default function RootLayout({
             }}>
               <Link href="/" style={{ display: 'flex', alignItems: 'center', gap: 10, textDecoration: 'none' }}>
                 <img 
-                  src="/image-slayer-artwork.webp" 
+                  src="/logo-image-slayer-white-min.webp" 
                   alt="Image Slayer Logo" 
                   style={{ 
                     width: 32, 
                     height: 32, 
-                    borderRadius: 8, 
-                    objectFit: 'cover', 
-                    border: '1px solid rgba(255, 255, 255, 0.1)', 
-                    boxShadow: '0 0 12px var(--accent-glow)' 
+                    objectFit: 'contain'
                   }} 
                 />
                 <span style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)', letterSpacing: '-0.3px' }}>
