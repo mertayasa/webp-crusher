@@ -360,8 +360,8 @@ export default function CompressPdf() {
       {files.length > 0 && (
         <ul style={s.list}>
           {files.map(job => (
-            <li key={job.id} style={s.card}>
-              <div style={s.cardLeft}>
+            <li key={job.id} className="file-card">
+              <div className="fc-left" style={s.cardLeft}>
                 <div style={{ color: statusColor(job.status), flexShrink: 0 }}>
                   <FileText size={20} />
                 </div>
@@ -371,7 +371,7 @@ export default function CompressPdf() {
                 </div>
               </div>
 
-              <div style={s.cardMid}>
+              <div className="fc-mid" style={s.cardMid}>
                 {job.status === 'pending' && <span style={s.pillMuted}>Queued</span>}
                 
                 {job.status === 'processing' && (
@@ -404,7 +404,7 @@ export default function CompressPdf() {
                 )}
               </div>
 
-              <div style={s.cardRight}>
+              <div className="fc-right" style={s.cardRight}>
                 {job.status === 'done' && (
                   <button style={s.btnDownload} onClick={() => downloadOne(job)}>
                     <Download size={13} />

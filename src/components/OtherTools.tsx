@@ -22,7 +22,8 @@ export default function OtherTools({ currentToolId }: OtherToolsProps) {
             <div style={s.cardContent}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
                 <h4 style={s.cardTitle}>{tool.name}</h4>
-                {tool.comingSoon && <span style={s.comingSoonBadge}>Coming Soon</span>}
+                {(tool as any).comingSoon && <span style={s.comingSoonBadge}>Coming Soon</span>}
+                {(tool as any).isBeta && <span style={s.betaBadge}>BETA</span>}
               </div>
               <p style={s.cardDesc}>{tool.desc}</p>
             </div>
@@ -91,6 +92,16 @@ const s: Record<string, CSSProperties> = {
     textTransform: 'uppercase',
     background: 'var(--accent-subtle)',
     color: 'var(--accent)',
+    padding: '2px 5px',
+    borderRadius: 4,
+    letterSpacing: '0.5px',
+  },
+  betaBadge: {
+    fontSize: 9,
+    fontWeight: 700,
+    textTransform: 'uppercase',
+    background: 'rgba(245, 158, 11, 0.15)',
+    color: '#f59e0b',
     padding: '2px 5px',
     borderRadius: 4,
     letterSpacing: '0.5px',

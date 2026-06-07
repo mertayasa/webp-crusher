@@ -330,9 +330,9 @@ export default function WebpCrusher() {
         {files.length > 0 && (
           <ul style={s.list} aria-label="File conversion queue">
             {files.map(file => (
-              <li key={file.id} style={s.card}>
+              <li key={file.id} className="file-card">
                 {/* Left: icon + filenames */}
-                <div style={s.cardLeft}>
+                <div className="fc-left" style={s.cardLeft}>
                   <div style={{ color: statusColor(file.status), flexShrink: 0 }}>
                     <FileImage size={20} />
                   </div>
@@ -343,7 +343,7 @@ export default function WebpCrusher() {
                 </div>
 
                 {/* Middle: status / progress / sizes */}
-                <div style={s.cardMid}>
+                <div className="fc-mid" style={s.cardMid}>
                   {file.status === 'pending' && (
                     <span style={s.pillMuted}>Queued</span>
                   )}
@@ -391,7 +391,7 @@ export default function WebpCrusher() {
                 </div>
 
                 {/* Right: action */}
-                <div style={s.cardRight}>
+                <div className="fc-right" style={s.cardRight}>
                   {file.status === 'done' && (
                     <button
                       style={s.btnDownload}
@@ -610,13 +610,8 @@ const s: Record<string, CSSProperties> = {
 
   // File list
   list: { listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 7 },
-  card: {
-    display: 'flex', alignItems: 'center', gap: 14,
-    padding: '12px 16px',
-    background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
-    boxShadow: 'var(--shadow-card)', animation: 'slide-in 200ms ease',
-  },
-  cardLeft: { display: 'flex', alignItems: 'center', gap: 10, flex: '0 0 auto', maxWidth: 230, minWidth: 0 },
+  card: { /* styles now via .file-card in App.css */ },
+  cardLeft: { display: 'flex', alignItems: 'center', gap: 10, flex: '1 1 auto', minWidth: 0 },
   fileNames: { display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 },
   fileOut: { fontSize: 13, fontWeight: 600, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
   fileIn:  { fontSize: 11, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },

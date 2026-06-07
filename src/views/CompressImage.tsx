@@ -383,8 +383,8 @@ export default function CompressImage() {
         {files.length > 0 && (
           <ul style={s.list}>
             {files.map(file => (
-              <li key={file.id} style={s.card}>
-                <div style={s.cardLeft}>
+              <li key={file.id} className="file-card">
+                <div className="fc-left" style={s.cardLeft}>
                   <div style={{ color: statusColor(file.status), flexShrink: 0 }}>
                     <FileImage size={20} />
                   </div>
@@ -394,7 +394,7 @@ export default function CompressImage() {
                   </div>
                 </div>
 
-                <div style={s.cardMid}>
+                <div className="fc-mid" style={s.cardMid}>
                   {file.status === 'pending' && <span style={s.pillMuted}>Queued</span>}
                   
                   {file.status === 'processing' && (
@@ -438,7 +438,7 @@ export default function CompressImage() {
                   )}
                 </div>
 
-                <div style={s.cardRight}>
+                <div className="fc-right" style={s.cardRight}>
                   {file.status === 'done' && (
                     <button style={s.btnDownload} onClick={() => downloadOne(file)}>
                       <Download size={13} />

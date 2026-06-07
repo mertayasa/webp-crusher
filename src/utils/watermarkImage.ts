@@ -1,4 +1,4 @@
-export type TextPreset = 'center' | 'bottom' | 'cross';
+export type TextPreset = 'cross-single' | 'cross-repeat' | 'center' | 'bottom';
 
 export interface TextWatermarkConfig {
   text: string;
@@ -6,6 +6,7 @@ export interface TextWatermarkConfig {
   color: string;
   opacity: number;
   preset: TextPreset;
+  rotation?: number; // degrees, used for cross presets
 }
 
 export interface ImageWatermarkConfig {
@@ -33,42 +34,53 @@ export function drawWatermarkToContext(
   ctx.drawImage(baseImg, 0, 0, w, h);
 
   if (mode === 'text' && textConfig) {
-    const { text, size, color, opacity, preset } = textConfig;
+    const { text, size, color, opacity, preset, rotation = -45 } = textConfig;
     ctx.globalAlpha = opacity;
     ctx.fillStyle = color;
     
-    const fontSize = (size / 100) * (Math.min(w, h) / 3); 
+    const fontSize = (size / 100) * (Math.min(w, h) / 3);
     ctx.font = `bold ${fontSize}px sans-serif`;
+    const angleRad = (rotation * Math.PI) / 180;
 
     if (preset === 'center') {
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText(text, w / 2, h / 2);
+
     } else if (preset === 'bottom') {
       ctx.textAlign = 'right';
       ctx.textBaseline = 'bottom';
       ctx.fillText(text, w - (w * 0.05), h - (h * 0.05));
-    } else if (preset === 'cross') {
+
+    } else if (preset === 'cross-single') {
+      // One diagonal watermark perfectly centered
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      
+      ctx.save();
       ctx.translate(w / 2, h / 2);
-      ctx.rotate(-Math.PI / 4);
-      
+      ctx.rotate(angleRad);
+      ctx.fillText(text, 0, 0);
+      ctx.restore();
+
+    } else if (preset === 'cross-repeat') {
+      // Tiled diagonal pattern across the whole image
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+
       const stepX = Math.max(ctx.measureText(text).width * 1.5, fontSize * 2);
       const stepY = fontSize * 3;
+      const diagonal = Math.sqrt(w * w + h * h);
+
+      ctx.save();
+      ctx.translate(w / 2, h / 2);
+      ctx.rotate(angleRad);
       
-      const diagonal = Math.sqrt(w*w + h*h);
-      const limit = diagonal;
-      
-      for (let x = -limit; x <= limit; x += stepX) {
-        for (let y = -limit; y <= limit; y += stepY) {
+      for (let x = -diagonal; x <= diagonal; x += stepX) {
+        for (let y = -diagonal; y <= diagonal; y += stepY) {
           ctx.fillText(text, x, y);
         }
       }
-      
-      ctx.rotate(Math.PI / 4);
-      ctx.translate(-w / 2, -h / 2);
+      ctx.restore();
     }
   } else if (mode === 'image' && imageConfig) {
     const { imgRef, x, y, scale, opacity } = imageConfig;

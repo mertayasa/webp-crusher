@@ -519,8 +519,8 @@ export default function ResizeImage() {
           {files.map(file => {
             const dims = getEstimatedDimensions(file.originalWidth, file.originalHeight);
             return (
-              <li key={file.id} style={s.card}>
-                <div style={s.cardLeft}>
+              <li key={file.id} className="file-card">
+                <div className="fc-left" style={s.cardLeft}>
                   <div style={{ color: 'var(--accent)', flexShrink: 0 }}>
                     <FileImage size={20} />
                   </div>
@@ -532,7 +532,7 @@ export default function ResizeImage() {
                   </div>
                 </div>
 
-                <div style={s.cardMid}>
+                <div className="fc-mid" style={s.cardMid}>
                   {file.status === 'pending' && (
                     <div style={s.sizeRow}>
                       <span style={s.sizeOrig}>{file.originalWidth}x{file.originalHeight}</span>
@@ -569,7 +569,7 @@ export default function ResizeImage() {
                   )}
                 </div>
 
-                <div style={s.cardRight}>
+                <div className="fc-right" style={s.cardRight}>
                   {file.status === 'done' && (
                     <button style={s.btnDownload} onClick={() => downloadOne(file)}>
                       <Download size={13} />

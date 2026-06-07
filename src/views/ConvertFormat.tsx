@@ -335,8 +335,8 @@ export default function ConvertFormat() {
         {files.length > 0 && (
           <ul style={s.list}>
             {files.map(file => (
-              <li key={file.id} style={s.card}>
-                <div style={s.cardLeft}>
+              <li key={file.id} className="file-card">
+                <div className="fc-left" style={s.cardLeft}>
                   <div style={{ color: statusColor(file.status), flexShrink: 0 }}>
                     <FileImage size={20} />
                   </div>
@@ -348,7 +348,7 @@ export default function ConvertFormat() {
                   </div>
                 </div>
 
-                <div style={s.cardMid}>
+                <div className="fc-mid" style={s.cardMid}>
                   {(file.status === 'pending' || file.status === 'error') && (
                     <div style={s.formatSelectWrap}>
                       <span style={s.toLabel}>to:</span>
@@ -389,7 +389,7 @@ export default function ConvertFormat() {
                   )}
                 </div>
 
-                <div style={s.cardRight}>
+                <div className="fc-right" style={s.cardRight}>
                   {(file.status === 'pending' || file.status === 'error') && (
                     <div style={{display: 'flex', gap: '8px'}}>
                       <button style={s.btnConvert} onClick={() => convertOne(file)}>
