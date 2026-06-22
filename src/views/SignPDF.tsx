@@ -126,8 +126,7 @@ export default function SignPDF() {
   const { getRootProps: getSigRootProps, getInputProps: getSigInputProps } = useDropzone({
     onDrop: onDropSignature,
     accept: { 'image/*': ['.png', '.jpg', '.jpeg'] },
-    maxFiles: 1,
-    noClick: true // Triggered by a button click instead
+    maxFiles: 1
   });
 
   // Drawing Canvas Logic
