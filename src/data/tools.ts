@@ -19,6 +19,7 @@ import {
   AppWindow,
   QrCode,
   Fingerprint,
+  FileSignature,
 } from 'lucide-react';
 
 export const TOOLS = [
@@ -43,4 +44,5 @@ export const TOOLS = [
   { id: 'remove-bg', path: '/remove-bg', name: 'Remove Background', icon: Wand2, color: '#14b8a6', desc: 'AI-powered background removal', category: 'image' },
   { id: 'split-pdf', path: '/split-pdf', name: 'Split PDF', icon: Scissors, color: '#eab308', desc: 'Extract or remove specific PDF pages', category: 'pdf' },
   { id: 'watermark-pdf', path: '/watermark-pdf', name: 'Watermark PDF', icon: Fingerprint, color: '#f43f5e', desc: 'Add text watermarks to all PDF pages', category: 'pdf' },
+  { id: 'sign-pdf', path: '/sign-pdf', name: 'Sign PDF', icon: FileSignature, color: '#8b5cf6', desc: 'Sign your PDF documents securely', category: 'pdf' },
 ];

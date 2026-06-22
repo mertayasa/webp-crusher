@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { Analytics } from '@vercel/analytics/react';
 import { Layers } from 'lucide-react';
 import Link from 'next/link';
+import Footer from '../components/Footer';
 
 // Import global styles (we will move index.css to globals.css or just import it)
 import '../index.css';
@@ -90,13 +91,7 @@ export default function RootLayout({
             {children}
           </div>
 
-          <footer style={{
-            padding: '14px 24px', textAlign: 'center',
-            fontSize: 12, color: 'var(--text-muted)', borderTop: '1px solid var(--border)',
-            marginTop: 'auto'
-          }}>
-            All processing happens in your browser — files never leave your device.
-          </footer>
+          <Footer />
         </div>
         <Analytics />
       </body>
