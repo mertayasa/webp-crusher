@@ -43,7 +43,8 @@ export default function SignPDF() {
   // Drawing Canvas State
   const [isDrawingMode, setIsDrawingMode] = useState(false);
   const drawingCanvasRef = useRef<HTMLCanvasElement>(null);
-  const [isDrawing, setIsDrawing] = useState(false);
+  const isDrawingRef = useRef(false);
+  const lastPosRef = useRef<{x: number, y: number} | null>(null);
 
   const [isProcessing, setIsProcessing] = useState(false);
 
@@ -135,6 +136,16 @@ export default function SignPDF() {
       const canvas = drawingCanvasRef.current;
       const ctx = canvas.getContext('2d');
       if (ctx) {
+        const dpr = window.devicePixelRatio || 1;
+        const rect = canvas.getBoundingClientRect();
+        
+        // Scale for High DPI displays
+        if (canvas.width !== rect.width * dpr) {
+          canvas.width = rect.width * dpr;
+          canvas.height = rect.height * dpr;
+          ctx.scale(dpr, dpr);
+        }
+        
         ctx.lineCap = 'round';
         ctx.lineJoin = 'round';
         ctx.lineWidth = 4;
@@ -144,22 +155,22 @@ export default function SignPDF() {
   }, [isDrawingMode]);
 
   const startDrawing = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
-    setIsDrawing(true);
+    isDrawingRef.current = true;
     const canvas = drawingCanvasRef.current;
     if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
     
     const rect = canvas.getBoundingClientRect();
     const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
     const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
     
-    ctx.beginPath();
-    ctx.moveTo(clientX - rect.left, clientY - rect.top);
+    lastPosRef.current = {
+      x: clientX - rect.left,
+      y: clientY - rect.top
+    };
   };
 
   const draw = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
-    if (!isDrawing) return;
+    if (!isDrawingRef.current || !lastPosRef.current) return;
     const canvas = drawingCanvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
@@ -169,12 +180,20 @@ export default function SignPDF() {
     const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
     const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
     
-    ctx.lineTo(clientX - rect.left, clientY - rect.top);
+    const newX = clientX - rect.left;
+    const newY = clientY - rect.top;
+
+    ctx.beginPath();
+    ctx.moveTo(lastPosRef.current.x, lastPosRef.current.y);
+    ctx.lineTo(newX, newY);
     ctx.stroke();
+
+    lastPosRef.current = { x: newX, y: newY };
   };
 
   const stopDrawing = () => {
-    setIsDrawing(false);
+    isDrawingRef.current = false;
+    lastPosRef.current = null;
   };
 
   const clearDrawing = () => {
@@ -182,7 +201,11 @@ export default function SignPDF() {
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
+    
+    ctx.save();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.restore();
   };
 
   const saveDrawing = () => {
@@ -672,7 +695,7 @@ export default function SignPDF() {
                 onTouchStart={startDrawing}
                 onTouchMove={draw}
                 onTouchEnd={stopDrawing}
-                style={{ display: 'block', cursor: 'crosshair', touchAction: 'none' }}
+                style={{ display: 'block', cursor: 'crosshair', touchAction: 'none', width: '550px', height: '200px' }}
               />
             </div>
 
