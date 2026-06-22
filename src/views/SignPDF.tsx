@@ -8,9 +8,11 @@ import Draggable from 'react-draggable';
 import { saveAs } from 'file-saver';
 import { 
   FileText, UploadCloud, ChevronLeft, ChevronRight, 
+  ChevronsLeft, ChevronsRight,
   PenTool, Image as ImageIcon, Download, X, Trash2
 } from 'lucide-react';
 import BackButton from '../components/BackButton';
+import OtherTools from '../components/OtherTools';
 
 export default function SignPDF() {
   const [pdfFile, setPdfFile] = useState<File | null>(null);
@@ -341,23 +343,64 @@ export default function SignPDF() {
                 {pdfFile.name}
               </div>
               
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'var(--bg)', padding: '4px 12px', borderRadius: '20px', border: '1px solid var(--border)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '4px', background: 'var(--bg)', padding: '4px 8px', borderRadius: '20px', border: '1px solid var(--border)' }}>
+                <button 
+                  onClick={() => setCurrentPage(1)}
+                  disabled={currentPage <= 1}
+                  style={{ background: 'none', border: 'none', color: currentPage <= 1 ? 'var(--text-muted)' : 'var(--text)', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: '4px' }}
+                  title="First Page"
+                >
+                  <ChevronsLeft size={16} />
+                </button>
                 <button 
                   onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
                   disabled={currentPage <= 1}
-                  style={{ background: 'none', border: 'none', color: currentPage <= 1 ? 'var(--text-muted)' : 'var(--text)', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+                  style={{ background: 'none', border: 'none', color: currentPage <= 1 ? 'var(--text-muted)' : 'var(--text)', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: '4px' }}
+                  title="Previous Page"
                 >
                   <ChevronLeft size={16} />
                 </button>
-                <span style={{ fontSize: '13px', minWidth: '40px', textAlign: 'center' }}>
-                  {currentPage} / {numPages}
-                </span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', margin: '0 4px' }}>
+                  <input 
+                    type="number"
+                    min={1}
+                    max={numPages}
+                    value={currentPage}
+                    onChange={(e) => {
+                      const val = parseInt(e.target.value);
+                      if (!isNaN(val) && val >= 1 && val <= numPages) {
+                        setCurrentPage(val);
+                      }
+                    }}
+                    style={{
+                      width: '40px',
+                      textAlign: 'center',
+                      background: 'var(--bg-surface)',
+                      border: '1px solid var(--border)',
+                      borderRadius: '4px',
+                      color: 'var(--text)',
+                      fontSize: '13px',
+                      padding: '2px 0',
+                      outline: 'none'
+                    }}
+                  />
+                  <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>/ {numPages}</span>
+                </div>
                 <button 
                   onClick={() => setCurrentPage(p => Math.min(numPages, p + 1))}
                   disabled={currentPage >= numPages}
-                  style={{ background: 'none', border: 'none', color: currentPage >= numPages ? 'var(--text-muted)' : 'var(--text)', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+                  style={{ background: 'none', border: 'none', color: currentPage >= numPages ? 'var(--text-muted)' : 'var(--text)', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: '4px' }}
+                  title="Next Page"
                 >
                   <ChevronRight size={16} />
+                </button>
+                <button 
+                  onClick={() => setCurrentPage(numPages)}
+                  disabled={currentPage >= numPages}
+                  style={{ background: 'none', border: 'none', color: currentPage >= numPages ? 'var(--text-muted)' : 'var(--text)', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: '4px' }}
+                  title="Last Page"
+                >
+                  <ChevronsRight size={16} />
                 </button>
               </div>
             </div>
@@ -662,6 +705,8 @@ export default function SignPDF() {
           </div>
         </div>
       )}
+      
+      <OtherTools currentToolId="sign-pdf" />
     </main>
   );
 }

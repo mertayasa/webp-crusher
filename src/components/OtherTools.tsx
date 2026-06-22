@@ -8,7 +8,16 @@ interface OtherToolsProps {
 }
 
 export default function OtherTools({ currentToolId }: OtherToolsProps) {
-  const otherTools = TOOLS.filter(t => t.id !== currentToolId);
+  const currentTool = TOOLS.find(t => t.id === currentToolId);
+  let otherTools = TOOLS.filter(t => t.id !== currentToolId);
+
+  if (currentTool && 'category' in currentTool) {
+    otherTools = otherTools.filter(t => (t as any).category === (currentTool as any).category);
+  }
+
+  // Shuffle or limit if desired, but for now just show them
+  // We can limit to 6 tools max
+  otherTools = otherTools.slice(0, 6);
 
   return (
     <div style={s.container}>
